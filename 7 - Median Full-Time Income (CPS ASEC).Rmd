@@ -1,0 +1,109 @@
+---
+title: "7 - Median Full-Time Income (CPS ASEC)"
+author: "Kaitlan Wong"
+date: "2023-04-18"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+library(ipumsr,quietly = T)
+library(dplyr,quietly = T)
+library(car,quietly = T)
+library(zoo,quietly = T)
+library(ggplot2,quietly = T)
+library(questionr,quietly = T)
+library(survey,quietly = T)
+library(png)
+library(tableone)
+library(stringr)
+library(psych)
+library(gtsummary)
+library(tidyverse)
+library(naniar)
+
+
+```
+
+
+```{r}
+#Read in CPS data from IPUMS
+
+cps_ddi <- read_ipums_ddi("cps_00005.xml")
+cps_data <- read_ipums_micro("cps_00005.xml", data_file = ("cps_00005.dat.gz"), verbose = FALSE)
+
+```
+
+
+```{r}
+#Convert variable names to lower case
+names(cps_data) <- tolower(names(cps_data))
+
+#View(cps_data)
+is.data.frame(cps_data)
+# double check for correct variable selecitons (age, state, etc.) and make sure lowest income is not negative (use incwage)
+describe(cps_data)
+
+
+```
+
+
+```{r}
+#Determine how many NAs there are 
+sum(is.na(cps_data))
+#Percent missing values per variable
+apply(cps_data, 2, function(col)sum(is.na(col))/length(col))
+
+#Remove missing cases 
+na.omit(cps_data)
+```
+
+
+```{r}
+###Recodes###
+
+#Filter for Dallas data and full-time workers (30+ hours)
+Dallas_data <- cps_data %>% 
+  filter(metarea == 1920) %>%     # 1920 is Dallas-Fort Worth, TX
+  filter(uhrsworkly >= 30) %>%
+#Condense Race and Ethnicity categories to create a new race/ethnicity variable
+  mutate(race_eth=case_when(hispan %in% c(100,102:104,108,109,200,300,400,500,600,610:612) & race %in% c(100,200,300,650:652,700,801:820,830) ~ "Hispanic",
+                             hispan == 000 & race == 100 ~ "White, non-Hispanic", 
+                             hispan == 000 & race == 200 ~ "Black, non-Hispanic",
+                             hispan == 000 & race == 300 ~ "AIAN, non-Hispanic",
+                             hispan == 000 & race %in% c(650:652) ~ "Asian or Pacific Islander, non-Hispanic",
+                             hispan == 000 & race == 700 ~ "Other, non-Hispanic",
+                             hispan == 000 & race %in% c(801:820,830) ~ "Multiracial, non-Hispanic",
+                             TRUE ~ NA_character_))
+
+```
+
+
+```{r}
+# Check dataframe after filtering for Dallas
+head(Dallas_data)
+
+# Double check # of rows
+dim(Dallas_data)
+
+# There are 0 rows, so unable to continue past this point :(
+
+```
+
+
+
+```{r}
+# Get median income by race/ethnicity and year
+median_income_data <- Dallas_data %>%
+  aggregate(incwage ~ year + race_eth, data = ., FUN = median) %>%
+  rename(median_income = incwage) %>%
+  arrange(year, race_eth)
+
+
+# View the data with the two new variables (race/ethnicity and poverty level)
+view(median_income_data)
+```
+
+
+
